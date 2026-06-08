@@ -1,0 +1,5 @@
+node_modules/
+agent/memory/
+agent/logs/
+agent/inbox/
+agent/outbox/
