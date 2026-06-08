@@ -33,6 +33,24 @@ export async function runAgent(config) {
   const ollamaOk = (await health()).ok;
   _log('info', 'start', { dryRun, ollama: ollamaOk, project: projectName });
 
+  // Fetch ecosystem context from samakia-specs for memory seeding
+  const specsApi = config.specsApiBase || 'https://specs.samakia.net';
+  try {
+    const ctxRes = await fetch(`${specsApi}/api/v1/agent/context?repo=${encodeURIComponent(projectName)}`, { signal: AbortSignal.timeout(10000) });
+    if (ctxRes.ok) {
+      const ctx = await ctxRes.json();
+      if (ctx.ok) {
+        memory.updateContext({ ecosystemRules: ctx.data.rules, repoCompliance: ctx.data.repoContext?.compliance, directives: ctx.data.directives?.length || 0 });
+        // Store directives in inbox
+        for (const dir of ctx.data.directives || []) {
+          const dirFile = path.join(inboxDir, `${dir.id || 'dir-' + Date.now()}.json`);
+          if (!fs.existsSync(dirFile)) fs.writeFileSync(dirFile, JSON.stringify(dir, null, 2));
+        }
+        _log('info', 'ecosystem_context', { rules: ctx.data.rules?.hardRules?.length, compliance: ctx.data.repoContext?.compliance?.score });
+      }
+    }
+  } catch { _log('warn', 'ecosystem_context_unavailable'); }
+
   // Check inbox for directives
   const inboxDir = path.join(agentDir, 'inbox');
   fs.mkdirSync(inboxDir, { recursive: true });
