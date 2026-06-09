@@ -1,5 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
+
+// Allow self-signed certs (local CA in Samakia ecosystem)
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = process.env.NODE_TLS_REJECT_UNAUTHORIZED || '0';
+
 import { generate, parseJSON, health } from './ollama.mjs';
 import { createTools } from './tools.mjs';
 import { createMemory } from './memory.mjs';
@@ -35,6 +39,8 @@ export async function runAgent(config) {
 
   // Fetch ecosystem context from samakia-specs for memory seeding
   const specsApi = config.specsApiBase || 'https://specs.samakia.net';
+  const inboxDir = path.join(agentDir, 'inbox');
+  fs.mkdirSync(inboxDir, { recursive: true });
   try {
     const ctxRes = await fetch(`${specsApi}/api/v1/agent/context?repo=${encodeURIComponent(projectName)}`, { signal: AbortSignal.timeout(10000) });
     if (ctxRes.ok) {
@@ -65,11 +71,9 @@ export async function runAgent(config) {
         _log('info', 'ecosystem_context', { rules: ctx.data.rules?.hardRules?.length, compliance: ctx.data.repoContext?.compliance?.score });
       }
     }
-  } catch { _log('warn', 'ecosystem_context_unavailable'); }
+  } catch (ctxErr) { _log('warn', 'ecosystem_context_unavailable', { error: ctxErr?.message || String(ctxErr) }); }
 
   // Check inbox for directives
-  const inboxDir = path.join(agentDir, 'inbox');
-  fs.mkdirSync(inboxDir, { recursive: true });
   const directives = fs.readdirSync(inboxDir).filter(f => f.endsWith('.json')).map(f => JSON.parse(fs.readFileSync(path.join(inboxDir, f), 'utf8')));
   _log('info', 'directives', { count: directives.length });
 
