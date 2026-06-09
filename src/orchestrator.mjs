@@ -46,6 +46,22 @@ export async function runAgent(config) {
           const dirFile = path.join(inboxDir, `${dir.id || 'dir-' + Date.now()}.json`);
           if (!fs.existsSync(dirFile)) fs.writeFileSync(dirFile, JSON.stringify(dir, null, 2));
         }
+        // Generate self-fix directives from failing compliance dimensions
+        const compliance = ctx.data.repoContext?.compliance;
+        if (compliance && compliance.score < 100) {
+          for (const dim of compliance.dimensions || []) {
+            if (!dim.ok && dim.applicable) {
+              const dirId = `autofix-${dim.id}-${Date.now()}`;
+              const dirFile = path.join(inboxDir, `${dirId}.json`);
+              if (!fs.existsSync(dirFile)) {
+                fs.writeFileSync(dirFile, JSON.stringify({
+                  id: dirId, type: 'fix_compliance', priority: 'high',
+                  details: { dimension: dim.id, weight: dim.weight, detail: dim.detail, action: `Fix failing dimension: ${dim.id}` }
+                }, null, 2));
+              }
+            }
+          }
+        }
         _log('info', 'ecosystem_context', { rules: ctx.data.rules?.hardRules?.length, compliance: ctx.data.repoContext?.compliance?.score });
       }
     }
@@ -56,6 +72,30 @@ export async function runAgent(config) {
   fs.mkdirSync(inboxDir, { recursive: true });
   const directives = fs.readdirSync(inboxDir).filter(f => f.endsWith('.json')).map(f => JSON.parse(fs.readFileSync(path.join(inboxDir, f), 'utf8')));
   _log('info', 'directives', { count: directives.length });
+
+  // Process compliance fix directives (if Ollama available and not recently attempted)
+  if (ollamaOk && directives.length > 0 && !dryRun) {
+    for (const dir of directives.slice(0, 2)) { // max 2 per cycle
+      if (dir.type !== 'fix_compliance') continue;
+      const dimId = dir.details?.dimension;
+      if (memory.wasRecentlyDone(`fix-${dimId}`, 60)) continue; // skip if attempted in last hour
+
+      _log('info', 'fixing_compliance', { dimension: dimId });
+      const fixResult = await callPersona('fixer', `Fix compliance issue: dimension "${dimId}" is failing. Detail: ${dir.details?.detail || 'unknown'}. The project is ${projectName}. What file needs to be created or updated?`);
+      if (fixResult.ok && fixResult.data?.patches) {
+        for (const patch of fixResult.data.patches) {
+          if (scoreConfidence(patch) >= 50) {
+            tools.writeFile(patch.path, patch.content);
+            _log('info', 'patch_applied', { path: patch.path, reason: patch.reason });
+          }
+        }
+      }
+      memory.logAction({ key: `fix-${dimId}`, type: 'compliance_fix', dimension: dimId });
+      // Remove processed directive
+      const dirFile = path.join(inboxDir, `${dir.id}.json`);
+      if (fs.existsSync(dirFile)) fs.unlinkSync(dirFile);
+    }
+  }
 
   // Build
   _log('info', 'build_start');
