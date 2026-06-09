@@ -9,6 +9,7 @@ import { createTools } from './tools.mjs';
 import { createMemory } from './memory.mjs';
 import { createPersonas } from './personas.mjs';
 import { selfReflect, scoreConfidence } from './reasoning.mjs';
+import { loadErrorContext, formatContextForPrompt, verifyAndRetry, createErrorMemory, buildProjectContext, enhancedFixerPrompt } from './enhanced-reasoning.mjs';
 
 const MAX_FIX_RETRIES = 3;
 
@@ -101,33 +102,77 @@ export async function runAgent(config) {
     }
   }
 
-  // Build
+  // Build with enhanced reasoning
   _log('info', 'build_start');
-  let buildResult = tools.exec(buildCmd);
-  let retries = 0;
-  while (!buildResult.ok && retries < MAX_FIX_RETRIES && ollamaOk) {
-    _log('warn', 'build_failed', { error: buildResult.error?.slice(0, 200), retry: retries });
-    const fixResult = await callPersona('fixer', `Build error:\n${buildResult.error}\n\nFix it.`);
-    if (fixResult.ok && fixResult.data?.patches) {
-      for (const patch of fixResult.data.patches) {
-        if (scoreConfidence(patch) >= 50 && !dryRun) tools.writeFile(patch.path, patch.content);
-      }
+  const errorMem = createErrorMemory(path.join(agentDir, 'memory'));
+  const projCtx = buildProjectContext(tools);
+
+  const buildResult = verifyAndRetry(tools, buildCmd, (error, attempt) => {
+    if (!ollamaOk) return false;
+    const errKey = errorMem.errorKey(error);
+
+    // Check if we already know a successful fix
+    const knownFix = errorMem.getSuccessfulFix(errKey);
+    if (knownFix && attempt === 0) {
+      _log('info', 'applying_known_fix', { errKey });
+      try { const fix = JSON.parse(knownFix); for (const p of fix) tools.writeFile(p.path, p.content); return true; } catch {}
     }
-    buildResult = tools.exec(buildCmd);
-    retries++;
+
+    // Load context + get failed fixes to avoid repeating
+    const ctx = loadErrorContext(tools, error);
+    const failedFixes = errorMem.getFailedFixes(errKey);
+    const prompt = enhancedFixerPrompt(error, projCtx, formatContextForPrompt(ctx), failedFixes);
+
+    _log('info', 'fixing', { attempt, contextFiles: ctx.length, failedBefore: failedFixes.length });
+
+    // Call LLM synchronously via top-level await workaround — use sync approach
+    // Since we can't await inside a sync callback, we'll handle this in the main flow
+    return false; // fallback — enhanced fix happens in main loop below
+  }, 1); // Only 1 retry in verifyAndRetry, main loop does the smart retries
+
+  // Enhanced fix loop (async-compatible)
+  let finalBuild = buildResult;
+  if (!finalBuild.ok && ollamaOk && !dryRun) {
+    for (let attempt = 0; attempt < MAX_FIX_RETRIES; attempt++) {
+      const error = finalBuild.error || '';
+      const errKey = errorMem.errorKey(error);
+      const ctx = loadErrorContext(tools, error);
+      const failedFixes = errorMem.getFailedFixes(errKey);
+      const prompt = enhancedFixerPrompt(error, projCtx, formatContextForPrompt(ctx), failedFixes);
+
+      _log('warn', 'build_failed', { attempt, error: error.slice(0, 150) });
+      const fixResult = await callPersona('fixer', prompt);
+      if (fixResult.ok && fixResult.data?.patches) {
+        const patchDesc = fixResult.data.patches.map(p => p.path).join(', ');
+        for (const patch of fixResult.data.patches) {
+          if (scoreConfidence(patch) >= 40) tools.writeFile(patch.path, patch.content);
+        }
+        // Immediate verification
+        const recheck = tools.exec(buildCmd);
+        if (recheck.ok) {
+          errorMem.record(errKey, JSON.stringify(fixResult.data.patches), true);
+          finalBuild = { ok: true, retries: attempt + 1 };
+          _log('info', 'fix_succeeded', { attempt, patches: patchDesc });
+          break;
+        } else {
+          errorMem.record(errKey, patchDesc, false);
+          finalBuild = { ok: false, error: recheck.error };
+        }
+      } else break;
+    }
   }
-  memory.logBuild({ ok: buildResult.ok, retries });
-  if (!buildResult.ok) { _log('error', 'build_failed_final'); }
+  memory.logBuild({ ok: finalBuild.ok, retries: finalBuild.retries || 0 });
+  if (!finalBuild.ok) { _log('error', 'build_failed_final'); }
 
   // Test
-  if (buildResult.ok && testCmd) {
+  if (finalBuild.ok && testCmd) {
     _log('info', 'test_start');
     const testResult = tools.exec(testCmd);
     _log(testResult.ok ? 'info' : 'warn', 'test_result', { ok: testResult.ok });
   }
 
   // Deploy
-  if (buildResult.ok && deployCmd && !dryRun) {
+  if (finalBuild.ok && deployCmd && !dryRun) {
     _log('info', 'deploy_start');
     const deployResult = tools.exec(deployCmd);
     if (deployResult.ok && healthUrl) {

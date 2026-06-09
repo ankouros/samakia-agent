@@ -1,6 +1,6 @@
 {
   "name": "@samakia/agent-core",
-  "version": "1.4.0",
+  "version": "2.0.0",
   "type": "module",
   "description": "Autonomous per-repo agent for Samakia ecosystem — full developer lifecycle with memory, ToT, and verification",
   "publishConfig": { "registry": "https://registry.samakia.net/" },

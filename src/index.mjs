@@ -4,3 +4,4 @@ export { createMemory } from './memory.mjs';
 export { createPersonas } from './personas.mjs';
 export { generate, parseJSON, health } from './ollama.mjs';
 export { treeOfThoughts, selfReflect, scoreConfidence } from './reasoning.mjs';
+export { loadErrorContext, formatContextForPrompt, verifyAndRetry, createErrorMemory, buildProjectContext, enhancedFixerPrompt } from './enhanced-reasoning.mjs';
