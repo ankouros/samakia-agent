@@ -105,16 +105,18 @@ export function buildProjectContext(tools) {
   const info = { stack: [], conventions: [], structure: [] };
 
   // Detect stack
-  const pkg = tools.readFile('package.json', 2000);
+  const pkg = tools.readFile('package.json', 50000);
   if (pkg.ok) {
-    const p = JSON.parse(pkg.content);
-    if (p.dependencies?.next) info.stack.push(`Next.js ${p.dependencies.next}`);
-    if (p.dependencies?.react) info.stack.push(`React ${p.dependencies.react}`);
-    if (p.dependencies?.mysql2) info.stack.push('MariaDB (mysql2)');
-    if (p.dependencies?.redis) info.stack.push('Redis/Dragonfly');
-    if (p.dependencies?.minio) info.stack.push('MinIO object storage');
-    if (p.devDependencies?.['@playwright/test']) info.stack.push('Playwright E2E tests');
-    if (p.devDependencies?.typescript) info.stack.push('TypeScript');
+    try {
+      const p = JSON.parse(pkg.content);
+      if (p.dependencies?.next) info.stack.push(`Next.js ${p.dependencies.next}`);
+      if (p.dependencies?.react) info.stack.push(`React ${p.dependencies.react}`);
+      if (p.dependencies?.mysql2) info.stack.push('MariaDB (mysql2)');
+      if (p.dependencies?.redis) info.stack.push('Redis/Dragonfly');
+      if (p.dependencies?.minio) info.stack.push('MinIO object storage');
+      if (p.devDependencies?.['@playwright/test']) info.stack.push('Playwright E2E tests');
+      if (p.devDependencies?.typescript) info.stack.push('TypeScript');
+    } catch {}
   }
 
   // Detect conventions
