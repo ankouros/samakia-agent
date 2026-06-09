@@ -11,6 +11,7 @@ import { createPersonas } from './personas.mjs';
 import { selfReflect, scoreConfidence } from './reasoning.mjs';
 import { loadErrorContext, formatContextForPrompt, verifyAndRetry, createErrorMemory, buildProjectContext, enhancedFixerPrompt } from './enhanced-reasoning.mjs';
 import { createVerificationPipeline } from './verification.mjs';
+import { createSpecsClient } from './specs-client.mjs';
 
 const MAX_FIX_RETRIES = 3;
 
@@ -39,39 +40,40 @@ export async function runAgent(config) {
   const ollamaOk = (await health()).ok;
   _log('info', 'start', { dryRun, ollama: ollamaOk, project: projectName });
 
-  // Fetch ecosystem context from samakia-specs for memory seeding
+  // Fetch ecosystem context from samakia-specs
   const specsApi = config.specsApiBase || 'https://specs.samakia.net';
   const inboxDir = path.join(agentDir, 'inbox');
   fs.mkdirSync(inboxDir, { recursive: true });
+  const specsClient = createSpecsClient(specsApi);
   try {
-    const ctxRes = await fetch(`${specsApi}/api/v1/agent/context?repo=${encodeURIComponent(projectName)}`, { signal: AbortSignal.timeout(10000) });
-    if (ctxRes.ok) {
-      const ctx = await ctxRes.json();
-      if (ctx.ok) {
-        memory.updateContext({ ecosystemRules: ctx.data.rules, repoCompliance: ctx.data.repoContext?.compliance, directives: ctx.data.directives?.length || 0 });
-        // Store directives in inbox
-        for (const dir of ctx.data.directives || []) {
-          const dirFile = path.join(inboxDir, `${dir.id || 'dir-' + Date.now()}.json`);
-          if (!fs.existsSync(dirFile)) fs.writeFileSync(dirFile, JSON.stringify(dir, null, 2));
-        }
-        // Generate self-fix directives from failing compliance dimensions
-        const compliance = ctx.data.repoContext?.compliance;
-        if (compliance && compliance.score < 100) {
-          for (const dim of compliance.dimensions || []) {
-            if (!dim.ok && dim.applicable) {
-              const dirId = `autofix-${dim.id}-${Date.now()}`;
-              const dirFile = path.join(inboxDir, `${dirId}.json`);
-              if (!fs.existsSync(dirFile)) {
-                fs.writeFileSync(dirFile, JSON.stringify({
-                  id: dirId, type: 'fix_compliance', priority: 'high',
-                  details: { dimension: dim.id, weight: dim.weight, detail: dim.detail, action: `Fix failing dimension: ${dim.id}` }
-                }, null, 2));
-              }
+    const fullCtx = await specsClient.fetchFullContext(projectName);
+    if (fullCtx.context) {
+      memory.updateContext({
+        ecosystemRules: fullCtx.context.rules,
+        repoCompliance: fullCtx.context.repoContext?.compliance,
+        directives: fullCtx.context.directives?.length || 0,
+        drift: fullCtx.drift,
+        dependencies: fullCtx.dependencies,
+      });
+      // Store directives in inbox
+      for (const dir of fullCtx.context.directives || []) {
+        const dirFile = path.join(inboxDir, `${dir.id || 'dir-' + Date.now()}.json`);
+        if (!fs.existsSync(dirFile)) fs.writeFileSync(dirFile, JSON.stringify(dir, null, 2));
+      }
+      // Generate self-fix directives from failing compliance dimensions
+      const compliance = fullCtx.context.repoContext?.compliance;
+      if (compliance && compliance.score < 100) {
+        for (const dim of compliance.dimensions || []) {
+          if (!dim.ok && dim.applicable) {
+            const dirId = `autofix-${dim.id}-${Date.now()}`;
+            const dirFile = path.join(inboxDir, `${dirId}.json`);
+            if (!fs.existsSync(dirFile)) {
+              fs.writeFileSync(dirFile, JSON.stringify({ id: dirId, type: 'fix_compliance', priority: 'high', details: { dimension: dim.id, weight: dim.weight, detail: dim.detail } }, null, 2));
             }
           }
         }
-        _log('info', 'ecosystem_context', { rules: ctx.data.rules?.hardRules?.length, compliance: ctx.data.repoContext?.compliance?.score });
       }
+      _log('info', 'ecosystem_context', { score: compliance?.score, drift: fullCtx.drift?.drifted, deps: fullCtx.dependencies?.myDeps?.length });
     }
   } catch (ctxErr) { _log('warn', 'ecosystem_context_unavailable', { error: ctxErr?.message || String(ctxErr) }); }
 
