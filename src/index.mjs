@@ -7,3 +7,4 @@ export { treeOfThoughts, selfReflect, scoreConfidence } from './reasoning.mjs';
 export { loadErrorContext, formatContextForPrompt, verifyAndRetry, createErrorMemory, buildProjectContext, enhancedFixerPrompt } from './enhanced-reasoning.mjs';
 export { createVerificationPipeline, CHECK_TYPES } from './verification.mjs';
 export { createSpecsClient } from './specs-client.mjs';
+export { createPlanEngine } from './plan-engine.mjs';
