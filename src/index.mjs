@@ -8,3 +8,7 @@ export { loadErrorContext, formatContextForPrompt, verifyAndRetry, createErrorMe
 export { createVerificationPipeline, CHECK_TYPES } from './verification.mjs';
 export { createSpecsClient } from './specs-client.mjs';
 export { createPlanEngine } from './plan-engine.mjs';
+export { createScopeLimiter, createQuarantine } from './safety.mjs';
+export { createMessaging } from './messaging.mjs';
+export { generateDigest } from './digest.mjs';
+export { minimatch } from './utils.mjs';

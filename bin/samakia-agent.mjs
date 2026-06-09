@@ -40,6 +40,30 @@ if (cmd === 'init') {
   const memPath = path.join(cwd, 'agent', 'memory', 'context.json');
   if (fs.existsSync(memPath)) { console.log(JSON.parse(fs.readFileSync(memPath, 'utf8'))); }
   else { console.log('No agent state. Run: samakia-agent init'); }
+} else if (cmd === 'plan') {
+  const task = args.slice(1).join(' ');
+  if (!task) { console.log('Usage: samakia-agent plan "task description"'); process.exit(1); }
+  const { createPlanEngine } = await import('../src/plan-engine.mjs');
+  const { createTools } = await import('../src/tools.mjs');
+  const { createMemory } = await import('../src/memory.mjs');
+  const { buildProjectContext } = await import('../src/enhanced-reasoning.mjs');
+  const tools = createTools(cwd);
+  const memory = createMemory(path.join(cwd, 'agent'));
+  const engine = createPlanEngine(tools, memory, null, (l, m, d) => console.log(`[${l}] ${m}`, d || ''));
+  const result = await engine.createPlan(task, buildProjectContext(tools));
+  if (result.ok) { console.log('\nPlan created:'); result.plan.steps.forEach(s => console.log(`  ${s.id}. [${s.action}] ${s.description}`)); }
+  else { console.log('Plan failed:', result.error); }
+} else if (cmd === 'digest') {
+  const { generateDigest } = await import('../src/digest.mjs');
+  const digest = generateDigest(path.join(cwd, 'agent', 'memory'));
+  console.log('\n📊 Weekly Digest');
+  console.log(`Period: ${digest.period.from.slice(0,10)} → ${digest.period.to.slice(0,10)}`);
+  digest.highlights.forEach(h => console.log(`  • ${h}`));
+  console.log(`  Total actions: ${digest.summary.totalActions}`);
+} else if (cmd === 'undo') {
+  const { execSync } = await import('node:child_process');
+  try { execSync('git revert HEAD --no-edit', { cwd, stdio: 'inherit' }); console.log('[samakia-agent] last commit reverted'); }
+  catch { console.log('[samakia-agent] undo failed'); }
 } else {
-  console.log('Usage: samakia-agent [init|run|status] [--live]');
+  console.log('Usage: samakia-agent [init|run|status|plan|digest|undo] [--live]');
 }
