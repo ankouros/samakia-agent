@@ -10,6 +10,7 @@ import { createMemory } from './memory.mjs';
 import { createPersonas } from './personas.mjs';
 import { selfReflect, scoreConfidence } from './reasoning.mjs';
 import { loadErrorContext, formatContextForPrompt, verifyAndRetry, createErrorMemory, buildProjectContext, enhancedFixerPrompt } from './enhanced-reasoning.mjs';
+import { createVerificationPipeline } from './verification.mjs';
 
 const MAX_FIX_RETRIES = 3;
 
@@ -164,14 +165,40 @@ export async function runAgent(config) {
   memory.logBuild({ ok: finalBuild.ok, retries: finalBuild.retries || 0 });
   if (!finalBuild.ok) { _log('error', 'build_failed_final'); }
 
-  // Test
-  if (finalBuild.ok && testCmd) {
-    _log('info', 'test_start');
-    const testResult = tools.exec(testCmd);
-    _log(testResult.ok ? 'info' : 'warn', 'test_result', { ok: testResult.ok });
+  // Full verification pipeline (lint → build already done → api → test → a11y → availability → metrics → deploy)
+  if (finalBuild.ok) {
+    const pipeline = createVerificationPipeline(tools, config);
+    const results = pipeline.runAll();
+    const summary = pipeline.summarize(results);
+    _log('info', 'verification_pipeline', summary);
+
+    // Auto-fix fixable failures
+    const fixable = pipeline.getFixableFailures(results);
+    for (const failure of fixable.slice(0, 2)) { // max 2 auto-fixes per cycle
+      if (!ollamaOk || dryRun) break;
+      const errKey = errorMem.errorKey(failure.error || failure.id);
+      if (memory.wasRecentlyDone(`fix-${errKey}`, 60)) continue;
+
+      const ctx = loadErrorContext(tools, failure.error || '');
+      const failedFixes = errorMem.getFailedFixes(errKey);
+      const prompt = enhancedFixerPrompt(failure.error || failure.detail, projCtx, formatContextForPrompt(ctx), failedFixes);
+
+      _log('info', 'fixing_issue', { check: failure.id, category: failure.category });
+      const fixResult = await callPersona('fixer', prompt);
+      if (fixResult.ok && fixResult.data?.patches) {
+        for (const patch of fixResult.data.patches) {
+          if (scoreConfidence(patch) >= 40) tools.writeFile(patch.path, patch.content);
+        }
+        // Re-run the specific check
+        const recheck = pipeline.runCheck(failure.id, { cmd: failure.id === 'lint' ? config.lintCmd : failure.id === 'test' ? config.testCmd : null, url: null, fixable: true, category: failure.category });
+        errorMem.record(errKey, fixResult.data.patches.map(p => p.path).join(','), recheck.status === 'pass');
+        _log(recheck.status === 'pass' ? 'info' : 'warn', 'fix_result', { check: failure.id, fixed: recheck.status === 'pass' });
+      }
+      memory.logAction({ key: `fix-${errKey}`, type: 'verification_fix', check: failure.id });
+    }
   }
 
-  // Deploy
+  // Deploy (after all fixes applied)
   if (finalBuild.ok && deployCmd && !dryRun) {
     _log('info', 'deploy_start');
     const deployResult = tools.exec(deployCmd);
@@ -182,7 +209,7 @@ export async function runAgent(config) {
   }
 
   // Commit if changes exist
-  if (!dryRun && buildResult.ok) {
+  if (!dryRun && finalBuild.ok) {
     const status = tools.git('status --porcelain');
     if (status.ok && status.output?.trim()) {
       tools.git('add -A');
