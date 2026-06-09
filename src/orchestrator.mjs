@@ -12,6 +12,7 @@ import { selfReflect, scoreConfidence } from './reasoning.mjs';
 import { loadErrorContext, formatContextForPrompt, verifyAndRetry, createErrorMemory, buildProjectContext, enhancedFixerPrompt } from './enhanced-reasoning.mjs';
 import { createVerificationPipeline } from './verification.mjs';
 import { createSpecsClient } from './specs-client.mjs';
+import { createVectorSearch } from './vector-search.mjs';
 
 const MAX_FIX_RETRIES = 3;
 
@@ -24,6 +25,7 @@ export async function runAgent(config) {
   const tools = createTools(repoRoot);
   const memory = createMemory(agentDir);
   const personas = createPersonas(projectName, projectContext);
+  const vectorSearch = createVectorSearch(config.qdrantUrl || 'http://localhost:6333');
   const log = [];
   const ts = new Date().toISOString().replace(/[:.]/g, '-');
 
@@ -141,7 +143,15 @@ export async function runAgent(config) {
       const errKey = errorMem.errorKey(error);
       const ctx = loadErrorContext(tools, error);
       const failedFixes = errorMem.getFailedFixes(errKey);
-      const prompt = enhancedFixerPrompt(error, projCtx, formatContextForPrompt(ctx), failedFixes);
+
+      // RAG: search vector DB for relevant code
+      let vectorCtx = '';
+      if (await vectorSearch.isAvailable()) {
+        const hits = await vectorSearch.searchRepo(projectName, error.slice(0, 200), 3);
+        if (hits.length) vectorCtx = '\n\nRELEVANT CODE FROM VECTOR SEARCH:\n' + hits.map(h => `[${h.path}] (score:${h.score.toFixed(2)})\n${h.content?.slice(0, 500)}`).join('\n\n');
+      }
+
+      const prompt = enhancedFixerPrompt(error, projCtx, formatContextForPrompt(ctx) + vectorCtx, failedFixes);
 
       _log('warn', 'build_failed', { attempt, error: error.slice(0, 150) });
       const fixResult = await callPersona('fixer', prompt);

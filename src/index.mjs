@@ -12,3 +12,4 @@ export { createScopeLimiter, createQuarantine } from './safety.mjs';
 export { createMessaging } from './messaging.mjs';
 export { generateDigest } from './digest.mjs';
 export { minimatch } from './utils.mjs';
+export { createVectorSearch } from './vector-search.mjs';
