@@ -3,18 +3,30 @@
   "version": "5.0.0",
   "type": "module",
   "description": "Autonomous per-repo agent for Samakia ecosystem — full developer lifecycle with memory, ToT, and verification",
-  "publishConfig": { "registry": "https://registry.samakia.net/" },
-  "bin": { "samakia-agent": "./bin/samakia-agent.mjs" },
+  "publishConfig": {
+    "registry": "https://registry.samakia.net/"
+  },
+  "bin": {
+    "samakia-agent": "./bin/samakia-agent.mjs"
+  },
   "exports": {
     ".": "./src/index.mjs",
     "./orchestrator": "./src/orchestrator.mjs",
     "./tools": "./src/tools.mjs",
     "./memory": "./src/memory.mjs"
   },
-  "files": ["src", "bin", "templates", "README.md"],
+  "files": [
+    "src",
+    "bin",
+    "templates",
+    "README.md"
+  ],
   "scripts": {
     "test": "node --test tests/",
     "lint": "echo ok"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "@samakia/logger": "^1.0.0"
+  }
 }
