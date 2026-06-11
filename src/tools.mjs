@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
 
+const PROTECTED_FILES = ['package.json', 'package-lock.json', 'Dockerfile', 'docker-compose.yml', 'docker-compose.yaml', '.env', 'next.config.mjs', 'next.config.ts', 'next.config.js', 'tsconfig.json'];
+
 export function createTools(repoRoot) {
   return {
     readFile(filePath, maxBytes = 10000) {
@@ -13,6 +15,8 @@ export function createTools(repoRoot) {
     writeFile(filePath, content) {
       const resolved = path.resolve(repoRoot, filePath);
       if (!resolved.startsWith(repoRoot)) return { ok: false, error: 'outside repo' };
+      const basename = path.basename(resolved);
+      if (PROTECTED_FILES.includes(basename)) return { ok: false, error: `protected file: ${basename}` };
       fs.mkdirSync(path.dirname(resolved), { recursive: true });
       fs.writeFileSync(resolved, content, 'utf8');
       return { ok: true, path: resolved };

@@ -107,3 +107,15 @@ test('confidence: scores empty patches low', () => {
 
 // Cleanup
 test.after(() => { fs.rmSync(tmpDir, { recursive: true, force: true }); });
+
+test('tools: writeFile blocks protected files', () => {
+  const t = createTools(tmpDir);
+  assert.equal(t.writeFile('package.json', '{}').ok, false);
+  assert.equal(t.writeFile('package-lock.json', '{}').ok, false);
+  assert.equal(t.writeFile('Dockerfile', 'FROM node').ok, false);
+  assert.equal(t.writeFile('docker-compose.yml', 'x').ok, false);
+  assert.equal(t.writeFile('next.config.mjs', 'x').ok, false);
+  assert.equal(t.writeFile('.env', 'x').ok, false);
+  // But allows src files
+  assert.equal(t.writeFile('src/test-protected.ts', '// ok').ok, true);
+});
