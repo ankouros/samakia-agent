@@ -1,0 +1,3 @@
+#!/bin/sh
+# samakia-agent post-commit hook — non-blocking background indexing
+node /home/aggelos/samakia-agent/bin/samakia-agent.mjs index --changed-only >/dev/null 2>&1 &

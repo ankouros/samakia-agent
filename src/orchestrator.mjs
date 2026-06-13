@@ -23,7 +23,7 @@ export async function runAgent(config) {
   fs.mkdirSync(logsDir, { recursive: true });
 
   const tools = createTools(repoRoot);
-  const memory = createMemory(agentDir);
+  const memory = createMemory(agentDir, config._cache || null, projectName);
   const personas = createPersonas(projectName, projectContext);
   const vectorSearch = createVectorSearch(config.qdrantUrl || 'http://localhost:6333');
   const log = [];
@@ -232,11 +232,24 @@ export async function runAgent(config) {
     }
   }
 
-  // Write report to outbox
+  // Index changed files after successful run
+  if (finalBuild.ok && config._indexer) {
+    try {
+      const idxResult = await config._indexer.index({ changedOnly: true });
+      _log('info', 'post_run_index', idxResult);
+    } catch (e) { _log('warn', 'index_failed', { error: e.message }); }
+  }
+
+  // Write report to outbox + publish via MQ
   const outboxDir = path.join(agentDir, 'outbox');
   fs.mkdirSync(outboxDir, { recursive: true });
   const report = { repo: projectName, ts: new Date().toISOString(), build: buildResult.ok, directives: directives.length, log: log.length };
   fs.writeFileSync(path.join(outboxDir, `report-${ts}.json`), JSON.stringify(report, null, 2));
+
+  if (config._messaging?.isConnected) {
+    try { await config._messaging.publish('report', { status: finalBuild.ok ? 'success' : 'failure', runId: `run-${ts}` }); }
+    catch { /* non-critical */ }
+  }
 
   // Save log
   fs.writeFileSync(path.join(logsDir, `run-${ts}.json`), JSON.stringify(log, null, 2));

@@ -13,3 +13,6 @@ export { createMessaging } from './messaging.mjs';
 export { generateDigest } from './digest.mjs';
 export { minimatch } from './utils.mjs';
 export { createVectorSearch } from './vector-search.mjs';
+export { createCache } from './cache.mjs';
+export { createIndexer } from './indexer.mjs';
+export { validateMessage, routingKey, makeMessage, queueName, EXCHANGE } from './events.mjs';

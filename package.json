@@ -1,6 +1,6 @@
 {
   "name": "@samakia/agent-core",
-  "version": "5.1.0",
+  "version": "5.2.0",
   "type": "module",
   "description": "Autonomous per-repo agent for Samakia ecosystem — full developer lifecycle with memory, ToT, and verification",
   "publishConfig": {
@@ -13,7 +13,11 @@
     ".": "./src/index.mjs",
     "./orchestrator": "./src/orchestrator.mjs",
     "./tools": "./src/tools.mjs",
-    "./memory": "./src/memory.mjs"
+    "./memory": "./src/memory.mjs",
+    "./cache": "./src/cache.mjs",
+    "./messaging": "./src/messaging.mjs",
+    "./indexer": "./src/indexer.mjs",
+    "./events": "./src/events.mjs"
   },
   "files": [
     "src",
@@ -27,6 +31,8 @@
   },
   "license": "MIT",
   "dependencies": {
-    "@samakia/logger": "^1.0.0"
+    "@samakia/logger": "^1.0.0",
+    "amqplib": "2.0.1",
+    "ioredis": "5.4.2"
   }
 }
