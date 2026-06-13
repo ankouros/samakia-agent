@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 2,
+  "projectName": "samakia-agent",
+  "repoRoot": "/home/aggelos/samakia-agent",
+  "buildCmd": "echo ok",
+  "testCmd": "node --test tests/*.test.mjs",
+  "deployCmd": null,
+  "healthUrl": null,
+  "dryRun": true,
+  "envFile": "/home/aggelos/.samakia-agent-env",
+  "indexOnCommit": true,
+  "indexCollection": "code-samakia-agent",
+  "indexExtensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".md", ".yaml", ".yml"],
+  "indexIgnore": ["node_modules", ".next", ".git", "dist", "build"]
+}
