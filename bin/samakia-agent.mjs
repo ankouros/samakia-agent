@@ -30,8 +30,6 @@ function loadConfig() {
 if (cmd === 'init') {
   const agentDir = path.join(cwd, 'agent');
   fs.mkdirSync(agentDir, { recursive: true });
-  fs.mkdirSync(path.join(agentDir, 'inbox'), { recursive: true });
-  fs.mkdirSync(path.join(agentDir, 'outbox'), { recursive: true });
   fs.mkdirSync(path.join(agentDir, 'memory'), { recursive: true });
   fs.mkdirSync(path.join(agentDir, 'logs'), { recursive: true });
   const configPath = path.join(agentDir, 'config.json');

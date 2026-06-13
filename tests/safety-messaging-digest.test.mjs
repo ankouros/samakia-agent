@@ -64,30 +64,19 @@ test('quarantine: resets on success', () => {
 });
 
 // ─── Messaging ──────────────────────────────────────────────────────────────
-test('messaging: send and receive', () => {
-  const repo1 = path.join(tmpDir, 'repo1');
-  const repo2 = path.join(tmpDir, 'repo2');
-  fs.mkdirSync(path.join(repo1, 'agent', 'inbox'), { recursive: true });
-  fs.mkdirSync(path.join(repo2, 'agent', 'inbox'), { recursive: true });
-
-  const m1 = createMessaging(path.join(repo1, 'agent'), 'repo1');
-  const m2 = createMessaging(path.join(repo2, 'agent'), 'repo2');
-
-  m1.send(repo2, { type: 'breaking_change', change: 'API v3 updated' });
-  const msgs = m2.receive();
-  assert.equal(msgs.length, 1);
-  assert.equal(msgs[0].from, 'repo1');
-  assert.equal(msgs[0].type, 'breaking_change');
+test('messaging: createMessaging returns expected interface', () => {
+  const m = createMessaging(path.join(tmpDir, 'agent'), 'test-repo', '');
+  assert.equal(typeof m.connect, 'function');
+  assert.equal(typeof m.publish, 'function');
+  assert.equal(typeof m.subscribe, 'function');
+  assert.equal(typeof m.close, 'function');
+  assert.equal(m.isConnected, false);
 });
 
-test('messaging: ack removes message', () => {
-  const repo = path.join(tmpDir, 'repo-ack');
-  fs.mkdirSync(path.join(repo, 'agent', 'inbox'), { recursive: true });
-  const m = createMessaging(path.join(repo, 'agent'), 'test');
-  fs.writeFileSync(path.join(repo, 'agent', 'inbox', 'msg-x-123.json'), '{"id":"msg-x-123"}');
-  assert.equal(m.receive().length, 1);
-  m.ack('msg-x-123');
-  assert.equal(m.receive().length, 0);
+test('messaging: publish returns ok:false when not connected', async () => {
+  const m = createMessaging(path.join(tmpDir, 'agent'), 'test-repo', '');
+  const result = await m.publish('report', { status: 'success' });
+  assert.equal(result.ok, false);
 });
 
 // ─── Digest ─────────────────────────────────────────────────────────────────
