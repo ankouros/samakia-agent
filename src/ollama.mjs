@@ -1,26 +1,25 @@
+import { createOllamaClient } from '@samakia/ollama-client';
+
 const OLLAMA_BASE = process.env.OLLAMA_BASE_URL || 'http://192.168.11.30:11434';
 const DEFAULT_MODEL = process.env.OLLAMA_MODEL || 'qwen3-coder:latest';
 const TIMEOUT_MS = 180_000;
+
+const client = createOllamaClient(OLLAMA_BASE);
 
 export async function generate({ model = DEFAULT_MODEL, system, prompt, format = 'json' }) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
   try {
-    const res = await fetch(`${OLLAMA_BASE}/api/generate`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, system, prompt, format, stream: false }),
-      signal: ctrl.signal,
-    });
-    if (!res.ok) return { ok: false, error: `ollama ${res.status}` };
-    const data = await res.json();
+    const data = await client.generate({ model, system, prompt, options: { format } });
     return { ok: true, response: data.response, model: data.model };
-  } catch (err) { return { ok: false, error: err.name === 'AbortError' ? 'timeout' : err.message }; }
-  finally { clearTimeout(timer); }
+  } catch (err) {
+    return { ok: false, error: err.name === 'AbortError' ? 'timeout' : err.message };
+  } finally { clearTimeout(timer); }
 }
 
 export async function health() {
-  try { const r = await fetch(`${OLLAMA_BASE}/api/tags`, { signal: AbortSignal.timeout(5000) }); return r.ok ? { ok: true } : { ok: false }; }
-  catch { return { ok: false }; }
+  const ok = await client.health();
+  return { ok };
 }
 
 export function parseJSON(raw) {
