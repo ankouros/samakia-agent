@@ -34,6 +34,6 @@
     "@samakia/logger": "^1.0.0",
     "amqplib": "2.0.1",
     "ioredis": "5.4.2",
-    "@samakia/ollama-client": "file:/home/aggelos/samakia-ollama-client"
+    "@samakia/ollama-client": "^1.0.0"
   }
 }
