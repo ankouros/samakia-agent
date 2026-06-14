@@ -1,6 +1,6 @@
 /**
  * Qdrant vector search client for samakia-agent.
- * Queries the SAMAKIA-VECTOR cluster for relevant code context.
+ * Queries the SAMAKIA-SHARED-VECTOR cluster for relevant code context.
  */
 
 const DEFAULT_URL = 'http://localhost:6333';

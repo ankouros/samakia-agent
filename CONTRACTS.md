@@ -25,7 +25,7 @@ Shared ecosystem contract: `/home/aggelos/samakia-specs/specs/base/ecosystem.yam
 - **Confidence Scoring**: patches scored 0-100, low-confidence flagged for human
 - **Error Pattern Memory**: tracks which fixes worked/failed, never repeats failures
 - **Context Loading**: reads importers, siblings, tsconfig before LLM call
-- **RAG Vector Search**: queries SAMAKIA-VECTOR for semantically similar code
+- **RAG Vector Search**: queries SAMAKIA-SHARED-VECTOR for semantically similar code
 
 ### Verification Pipeline
 Runs 8 check types: lint, build, API health, tests, accessibility, availability, metrics, deploy.
@@ -65,4 +65,4 @@ samakia-agent undo          # revert last agent commit
 - Per-repo agents write compliance reports to `agent/outbox/`
 - 54 tests across 6 test files
 - Uses Ollama `qwen3-coder:latest` for LLM + `nomic-embed-text` for embeddings
-- Uses SAMAKIA-VECTOR (Qdrant) for RAG context retrieval
+- Uses SAMAKIA-SHARED-VECTOR (Qdrant) for RAG context retrieval
