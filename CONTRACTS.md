@@ -1,7 +1,7 @@
 # SAMAKIA-AGENT Contracts
 
 Source of truth: `/home/aggelos/samakia-specs/repo-contracts/samakia-agent.md`
-Sync target: `/home/aggelos/samakia-agent/CONTRACTS.md`.
+Sync target: `/home/aggelos/SAMAKIA-MODULES/samakia-agent/CONTRACTS.md`.
 Shared ecosystem contract: `/home/aggelos/samakia-specs/specs/base/ecosystem.yaml`.
 
 ## Purpose

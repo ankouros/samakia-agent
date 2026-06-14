@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "projectName": "samakia-agent",
-  "repoRoot": "/home/aggelos/samakia-agent",
+  "repoRoot": "/home/aggelos/SAMAKIA-MODULES/samakia-agent",
   "buildCmd": "echo ok",
   "testCmd": "node --test tests/*.test.mjs",
   "deployCmd": null,
